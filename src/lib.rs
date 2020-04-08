@@ -59,9 +59,65 @@ extern crate num_traits;
 #[cfg_attr(feature = "serialize", macro_use)]
 extern crate serde_derive;
 
+extern crate rsmalloc;
+
+#[global_allocator]
+static GLOBAL: rsmalloc::Allocator = rsmalloc::Allocator;
+
 pub mod distance;
 mod heap_element;
 pub mod kdtree;
 mod util;
 pub use crate::kdtree::ErrorKind;
 pub use crate::kdtree::KdTree;
+
+use distance::squared_euclidean;
+use std::convert::From;
+
+// A struct that can be passed between C and Rust
+#[repr(C)]
+pub struct ResTuple {
+    npoints: f64,
+    dist: usize,
+}
+
+// Conversion functions
+impl From<(f64, usize)> for ResTuple {
+    fn from(tup: (f64, usize)) -> ResTuple {
+        ResTuple { npoints: tup.0, dist: tup.1 }
+    }
+}
+
+impl From<ResTuple> for (f64, usize) {
+    fn from(tup: ResTuple) -> (f64, usize) {
+        (tup.npoints, tup.dist)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn kdtree_create(size: u64) -> *mut KdTree<f64, usize, [f64; 2]> {
+    println!("Calling kdtree new");
+
+    let a: ([f64; 2], usize) = ([0f64, 0f64], 0);
+    let b: ([f64; 2], usize) = ([1f64, 1f64], 1);
+    let c: ([f64; 2], usize) = ([2f64, 2f64], 2);
+    let d: ([f64; 2], usize) = ([3f64, 3f64], 3);
+
+    let dimensions = 2;
+    let mut kdtree = KdTree::new(dimensions);
+
+    kdtree.add(a.0, a.1).unwrap();
+    kdtree.add(b.0, b.1).unwrap();
+    kdtree.add(c.0, c.1).unwrap();
+    kdtree.add(d.0, d.1).unwrap();
+
+    Box::into_raw(Box::new(kdtree))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn kdtree_lookup(kdtree: *mut KdTree<f64, usize, [f64; 2]>, idx: &[f64; 2]) -> ResTuple {
+    let kdtree = kdtree.as_ref().unwrap();
+    println!("Idxs: {} {}", idx[0], idx[1]);
+    let res = kdtree.nearest(idx, 2, &squared_euclidean).unwrap();
+    (res[1].0, *res[1].1).into()
+}

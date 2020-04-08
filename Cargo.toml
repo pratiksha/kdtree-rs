@@ -25,3 +25,10 @@ optional = true
 
 [features]
 serialize = ["serde", "serde_derive"]
+
+# For Clamor.
+[dependencies.rsmalloc]
+path = "../rsmalloc"
+
+[lib]
+crate-type = ["cdylib"]
